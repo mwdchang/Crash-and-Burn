@@ -1,0 +1,358 @@
+<html>
+<head>
+<link rel="stylesheet" href="//netdna.bootstrapcdn.com/bootstrap/3.0.2/css/bootstrap.min.css">
+<script src="http://d3js.org/d3.v3.min.js" charset="utf-8"></script>
+<script src="http:////cdnjs.cloudflare.com/ajax/libs/underscore.js/1.5.2/underscore-min.js"></script>
+<script src="http://yandex.st/highlightjs/7.5/highlight.min.js"></script>
+<style type="text/css">
+.highlight {
+   background-color: #FF0
+}
+th {
+   font-size: 12px;
+}
+</style>
+</head>
+<body style="margin-left:5px; margin-top:50px; margin-right:5px">
+<div style="position:fixed; display:block; opacity:0.75; background-color:rgb(230, 230, 230); padding-left:5px; padding-right:15px; padding-top:5px; width:100%; top:0px; overflow:visible; height:35px">
+   <div style="float:left">
+      <label>Search: </label>&nbsp;<input id="filter" type="text" size="30" onKeyUp="doFilter()"></input>
+      <select id="version" onChange="switchDictionary()"></select>
+      <select id="c_version" onChange="switchDictionary()"></select>
+   </div>
+   <div style="float:right">
+      <label id="selectionLabel">All File Types</label><br>
+      <svg id="selection" height="700px" width="300px" style="visibility:hidden"></svg>
+   </div>
+   <div style="clear:both"></div>
+</div>
+<div id="_dictionary"></div>
+</body>
+<script>
+
+// Colours
+var cRowNormal  = d3.rgb(200, 200, 200);
+var cRowNew     = d3.rgb(70, 60, 140);
+var cRowChanged = d3.rgb(200, 100, 100);
+var cBar = "#AAAAAA";
+var cBarSelect = "#0088BB";
+
+var currentSelection = 'all';
+var dictionaryMap = {};
+
+function getSelect(elem) {
+   var index = d3.select(elem).node().selectedIndex;
+   return d3.select(elem).node()[index].value;
+}
+
+
+function switchDictionary() {
+   var val = getSelect("#version");
+   showDictionary(val);
+}
+
+
+function doTypeFilter(label) {
+   var val = currentSelection;
+   d3.select("#selectionLabel").text( label);
+   d3.select("#selection").style("visibility", "hidden");
+
+   window.scrollTo(0, 0);
+
+   d3.selectAll(".dict_section").style("display", "block");
+   if (val === "all") {
+      d3.selectAll(".dict_section").style("display", "block");
+   } else {
+      d3.selectAll(".dict_section").filter(function(section) {
+         if (section.name === val) return 0;
+         return 1;
+      }).style("display", "none");
+   }
+}
+
+function doFilter() {
+
+
+   var txt = d3.select("#filter").node().value;
+   var re = new RegExp(txt, "i");
+   var num;
+   var h = {};
+
+   window.scrollTo(0, 0);
+
+   num = 0;
+   d3.selectAll(".dict_table").selectAll("tr").style("display", "table-row");
+   if (!txt || txt === '') {
+      d3.selectAll(".dict_table").selectAll("tr").style("display", "table-row");
+   } else {
+      var collection = d3.selectAll(".dict_table").selectAll("tbody").selectAll("tr").filter(function(d) {
+
+         restrictionList = d.restrictions;
+         codelist = _.find(restrictionList, function(obj) { return obj.type == 'codelist'; });
+
+         if (d.name.match(re) || (codelist && codelist.config.name.match(re))) { 
+           num++;
+           var pName = d3.select(d3.select(this).node().parentNode).datum().name;
+           h[pName] = 1;
+           return 0;
+         }
+         return 1;
+      }).style("display", "none");
+   }
+
+
+   // Should use select2 or something that can be styled more easily
+   d3.select("#selection")
+     .selectAll("g")
+     .each(function(d) {
+        var datatype = d3.select(this).attr("id").split("_")[1];
+        console.log("datatype", datatype);
+        if (datatype in h) {
+           d3.select(this).select("rect").style("fill", cBarSelect);
+        } else {
+           d3.select(this).select("rect").style("fill", cBar);
+        }
+     });
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Determines whether if there are significant changes
+////////////////////////////////////////////////////////////////////////////////
+function isDifferent(row1, row2) {
+   if (! _.isEqual(row1.restrictions, row2.restrictions)) return true;
+   return false;
+}
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Build a single table row
+////////////////////////////////////////////////////////////////////////////////
+function buildRow( row, idx ) {
+   var restrictionList = row.restrictions;
+   var codelist = _.find(restrictionList, function(obj) { return obj.type == 'codelist'; });
+   var regex    = _.find(restrictionList, function(obj) { return obj.type == 'regex'; });
+   var script   = _.find(restrictionList, function(obj) { return obj.type == 'script'; });
+   var required = _.find(restrictionList, function(obj) { return obj.type == 'required'; });
+
+   var tableName = d3.select(d3.select(this).node().parentNode).datum().name;
+   var comparedVer  = getSelect("#c_version");
+   var compareDict  = dictionaryMap[comparedVer];
+   var compareTable = _.find(compareDict.files, function(obj) { return obj.name === tableName; });
+   var compareRow = null;
+
+   if (compareTable)
+      compareRow = _.find(compareTable.fields, function(obj) { return obj.name === row.name; });
+
+   d3.select(this).append("td").style("background-color", function() {
+      if (!compareRow) return cRowNew;
+      if (isDifferent(row, compareRow)) return cRowChanged;
+      return null;
+   });
+
+   if (!compareRow)  {
+      d3.select("#selection").select("#vv_"+tableName).append("rect").attr("x", 2).attr("y", 2+idx).attr("height", 1).attr("width", 15).style("fill", cRowNew);
+   } else if (isDifferent(row, compareRow)) {
+      d3.select("#selection").select("#vv_"+tableName).append("rect").attr("x", 2).attr("y", 2+idx).attr("height", 1).attr("width", 15).style("fill", cRowChanged);
+   } else {
+      d3.select("#selection").select("#vv_"+tableName).append("rect").attr("x", 2).attr("y", 2+idx).attr("height", 1).attr("width", 15).style("fill", cRowNormal);
+   }
+   
+
+   d3.select(this).append("td").text(row.name);
+   var attrBox = d3.select(this).append("td");
+   if (row.controlled === true) {
+      attrBox.append("div").text("Controlled");  
+   }
+   if (required) {
+      attrBox.append("div").text("Required");  
+      if (required.config.acceptMissingCode == true) {
+         attrBox.append("div").text("NA-Code");  
+      } 
+   }
+
+   d3.select(this).append("td").text(row.valueType);
+   d3.select(this).append("td").style("max-width", "300px").text(row.label);
+
+   d3.select(this).append("td").text(function() {
+     if (codelist) 
+       return codelist.config.name;
+     return "";
+   });
+
+   d3.select(this).append("td").each(function() {
+      if (regex) {
+         d3.select(this).append("p").text(regex.config.pattern);
+         if (regex.config.examples)
+            d3.select(this).append("pre").style("width", "100%").style("font-size", "9px").append("code").text(regex.config.examples);
+      }
+   });
+
+   d3.select(this).append("td").style("max-width",  "250px").each(function() {
+      if (script) {
+         d3.select(this).append("p").text(script.config.description);
+         d3.select(this).append("pre").style("width", "100%").style("font-size", "9px").append("code").text(script.config.script);
+      }
+   });
+}
+
+
+////////////////////////////////////////////////////////////////////////////////
+// Show a single full dictionary
+////////////////////////////////////////////////////////////////////////////////
+function showDictionary(version) {
+   data = dictionaryMap[version];
+
+   console.log("data", version, data);
+
+   data.files  = _.sortBy(data.files, function(d) {
+     return d.name;
+   });
+
+   // Clean
+   d3.select("#selection").selectAll("*").remove();
+   d3.select("#_dictionary").selectAll("*").remove();
+
+   var barHeight = 25;
+
+   d3.select("body").on("click", function() {
+      d3.select("#selection").style("visibility", "hidden");
+   });
+
+
+   d3.select("#selectionLabel").style("color", "#666666");
+   d3.select("#selectionLabel")
+     .on("mouseover", function() {
+        d3.select("#selectionLabel").style("color", "#336699");
+     })
+     .on("mouseout", function() {
+        d3.select("#selectionLabel").style("color", "#666666");
+     })
+     .on("click", function() {
+        if (d3.select("#selection").style("visibility") === "visible") {
+           d3.select("#selection").style("visibility", "hidden");
+        } else {
+           d3.select("#selection").style("visibility", "visible");
+        }
+        d3.event.stopPropagation();
+     });
+
+
+   var grp = d3.select("#selection").append("g").attr("id", "vv_all").attr("transform", "translate(" + 0 + "," + (1) + ")");
+   grp.append("rect").attr("width", 300).attr("height", (barHeight-1)).style("fill", cBar).style("opacity", 0.99)
+      .on("mouseover", function(d) { d3.select(this).style("fill", cBarSelect); })
+      .on("mouseout", function(d) { d3.select(this).style("fill", cBar); })
+      .on("click", function(d) {
+         currentSelection = 'all';
+         doTypeFilter("All File Types");
+         d3.event.stopPropagation();
+      });
+     
+   grp.append("text").attr("x", 15).attr("y", 15).attr("font-size", "11px").style("pointer-events", "none")
+      .text("All Data Types");
+
+   var tempC = 1+barHeight;
+
+   d3.select("#_dictionary")
+     .selectAll("div")
+     .data( data.files )
+     .enter()
+     .append("div")
+     .classed("dict_section", true)
+     .each(function(table, i) {
+        d3.select(this).append("br");
+        d3.select(this).append("em").text(table.label);
+
+        var realH = Math.max(barHeight, 5+table.fields.length);
+
+        var grp = d3.select("#selection").append("g").attr("id", "vv_"+table.name).attr("transform", "translate(" + 0 + "," + (tempC) + ")");
+        grp.append("rect").attr("width", 300).attr("height", (realH-1)).style("fill", cBar).style("opacity", 0.99)
+           .on("mouseover", function(d) { d3.select(this).style("fill", cBarSelect); })
+           .on("mouseout", function(d) { d3.select(this).style("fill", cBar); })
+           .on("click", function(d) {
+              currentSelection = table.name;   
+              doTypeFilter(table.label);
+              d3.event.stopPropagation();
+           });
+        tempC += realH;
+
+        grp.append("text").attr("x", 23).attr("y", 13).attr("font-size", "11px").style("pointer-events", "none")
+           .text( table.label );
+
+        grp.append("rect")
+           .attr("x", 1)
+           .attr("y", 1)
+           .attr("width", 17)
+           .attr("height", table.fields.length+2)
+           .style("stroke", "#BBBBBB")
+           .style("fill", "none");
+
+
+        // Table
+        var dtable = d3.select(this)
+          .append("table")
+          .classed("table", true)
+          .classed("table-bordered", true)
+          .classed("table-condensed", true)
+          .classed("dict_table", true);
+
+        var thead = dtable.append("thead").append("tr");
+        thead.append("th").style("width", "5px").text("");
+        thead.append("th").text("Field");
+        thead.append("th").text("Attribute");
+        thead.append("th").text("Type");
+        thead.append("th").text("Description");
+        thead.append("th").text("CodeList");
+        thead.append("th").text("RegExp");
+        thead.append("th").text("Script");
+
+        var tbody = dtable.append("tbody");
+        tbody.selectAll("tr")
+          .data(table.fields)
+          .enter()
+          .append("tr")
+          .style("font-size", "12px")
+          .each(buildRow); 
+     });
+}
+
+
+// Start
+d3.json("/dict", function(dictionaryList) {
+
+   var sortedDictionaryList = _.sortBy(dictionaryList, function(obj) {
+      return obj.lastUpdate;
+   });
+   sortedDictionaryList = sortedDictionaryList.reverse();
+
+   var versionList = _.pluck(sortedDictionaryList, "version");
+   var latest = sortedDictionaryList[0].version;
+
+   for (var i=0; i < sortedDictionaryList.length; i++)
+      dictionaryMap[ sortedDictionaryList[i].version ] = sortedDictionaryList[i];
+
+   d3.select("#version").selectAll("option")
+     .data(versionList)
+     .enter()
+     .append("option")
+     .attr("value", function(d) { return d; })
+     .text(function(d) { return d;});
+
+   d3.select("#c_version").selectAll("option")
+     .data(versionList)
+     .enter()
+     .append("option")
+     .attr("value", function(d) { return d; })
+     .text(function(d) { return d;});
+
+   d3.select("#filter").on("click", function() {
+      d3.event.stopPropagation();
+   });
+
+
+   showDictionary(latest);
+});
+</script>
+</html>
