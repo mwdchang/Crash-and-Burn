@@ -1,22 +1,26 @@
+// Ignore bad certificate
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+
 var request = require("request");
 var assert = require("assert");
 var underscore = require("underscore");
 var params = require("./params");
 
-var url = "https://dcc.icgc.org/api/v1";
-var eventCount = 3;
+// var url = "https://dcc.icgc.org/api/v1";
+var url = "https://localhost:55555/api/v1";
+var eventCount = 50;
 
 function _project_gene_count(proj) {
    if (! Array.isArray(proj)) proj = [proj];
 
-   request(url + "/projects/" + proj.join(',') +  "/genes/count", function(err, response, body) {
+   request(url + "/projects/" + proj.join(',') +  "/genes/counts", function(err, response, body) {
       var data = JSON.parse(body);
       var filter = {donor:{projectId:{is: proj }}};
       var u = "/genes?filters=" + JSON.stringify(filter) + "&size=0";
       request(url + u, function(err, response, body) {
          body = JSON.parse(body);
-         assert.ok(body.pagination);
-         assert.ok(body.pagination.total);
+         // assert.ok(body.pagination);
+         // assert.ok(body.pagination.total);
          a2 = body.pagination.total;
          a1 = data.Total;
 
@@ -30,7 +34,7 @@ function _project_gene_count(proj) {
 function _project_mutation_count(proj) {
    if (! Array.isArray(proj)) proj = [proj];
 
-   request(url + "/projects/" + proj.join(',') +  "/mutations/count", function(err, response, body) {
+   request(url + "/projects/" + proj.join(',') +  "/mutations/counts", function(err, response, body) {
       var data = JSON.parse(body);
       var filter = {donor:{projectId:{is: proj }}};
       var u = "/mutations?filters=" + JSON.stringify(filter) + "&size=0";
@@ -43,30 +47,32 @@ function _project_mutation_count(proj) {
          assert.equal(a1, a2);
       });
    });
-
 }
 
 // v1/projects/{projectIds}/genes/{geneIds}/mutations/count
 function _project_gene_mutation_count(proj, gene) {
    if (! Array.isArray(proj)) proj = [proj];
    if (! Array.isArray(gene)) gene = [gene];
+
+   var path = proj.join(',') + "/genes/" + gene.join(',') + "/mutations/counts";
    
-   request(url + "/projects/" + proj.join(',') +  "/genes/" + gene.join(',') + "/mutations/count", function(err, response, body) {
+   request(url + "/projects/" + path , function(err, response, body) {
+      console.log("path ", "/projects/"+path);
       var data = JSON.parse(body);
 
-      gene.forEach(function(g) {
+      proj.forEach(function(p) {
          var filter = {
-            donor:{projectId:{is: proj }},
-            gene:{id:{is: g}}
+            donor:{projectId:{is: p}},
+            gene:{id:{is: gene}}
          };
          var u = "/mutations?filters=" + JSON.stringify(filter) + "&size=0";
          request(url + u, function(err, response, body) {
             body = JSON.parse(body);
-            assert.ok(body.pagination);
-            assert.ok(body.pagination.total);
+            // assert.ok(body.pagination);
+            // assert.ok(body.pagination.total);
             a2 = body.pagination.total;
-            a1 = data[g].Total;
-            console.log("Project-Gene-Mutation", proj, g, "Expecting:", a1, "Actual:", a2);
+            a1 = data[p].Total;
+            console.log("Project-Gene-Mutation", p, gene.join(','), "Expecting:", a1, "Actual:", a2);
             assert.equal(a1, a2);
          });
       });
