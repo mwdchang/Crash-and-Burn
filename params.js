@@ -61,11 +61,5 @@ var _genes = [
 ]; 
 
 
-var _mutations = [
-];
-
-
-
 exports.projects  = _projects;
 exports.genes     = _genes;
-exports.mutations = _mutations;
