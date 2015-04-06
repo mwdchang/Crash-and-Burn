@@ -1,8 +1,9 @@
 var phantom = require('phantom');
 var _ = require('underscore');
+var system = require('system');
 
-// var BASE_URL = 'https://dcc.icgc.org/search';
-var BASE_URL = 'http://localhost:8080';
+var BASE_URL = 'https://dcc.icgc.org';
+// var BASE_URL = 'http://localhost:8080';
 
 
 function traceLink(page, href, value) {
@@ -17,6 +18,7 @@ function traceLink(page, href, value) {
   phantom.create(function(ph) {
 
     function evaluate(selector) {
+
       var res = null;
       res = document.querySelectorAll(selector)[0].textContent;
       res = res.replace(/\n/, '').replace(/\s+/, '').replace(/,/, '');
@@ -40,7 +42,7 @@ function traceLink(page, href, value) {
       page.open(BASE_URL + href, function(status) {
         setTimeout(function() {
           page.evaluate(evaluate, validate, selector);
-        }, 4000);
+        }, 3000);
       });
     })
 
@@ -58,16 +60,29 @@ phantom.create(function(ph) {
       return d.href !== '';
     });
     
-    // console.log('Html', links);
-
-    links.forEach(function(link) {
-      traceLink(_page, link.href, link.value);
+    links.forEach(function(link, idx) {
+      setTimeout(function() {
+        traceLink(_page, link.href, link.value);
+      }, 3000 * idx);
     });
 
     ph.exit();
   }
 
   function evaluate() {
+
+
+    var hidden = document.querySelectorAll('.icon-caret-left');
+    // console.log('hello ' +  hidden.length);
+    // for (var i=0; i < hidden.length; i++) { 
+    // for (var i=0; i < hidden.length; i++) { 
+    for (var i=0; i < 2; i++) { 
+      $(hidden[i]).click();
+      //console.log('hello ' +  hidden[i]);
+      //if (hidden[i]) hidden[i].click();
+    }
+    
+
     var links = document.getElementsByTagName('a');
     links = Array.prototype.map.call(links,function(link){
         return {
@@ -82,14 +97,23 @@ phantom.create(function(ph) {
 
     _page = page;
 
-    return page.open(BASE_URL + '/search', function(status) {
-      console.log("opened icgc? ", status );
+    page.set('onConsoleMessage', function(msg) {
+      console.log('...' + msg);
+    });
+    /*
+    page.onConsoleMessage = function(msg) {
+      system.stderr.writeLine('console :' +  msg);
+    };
+    */
+
+    return page.open(BASE_URL + '/search/g', function(status) {
+      // console.log("opened icgc? ", status );
 
       console.log('waiting...');
       setTimeout(function() {
         console.log('evaluating...');
         page.evaluate(evaluate, validate);
-      }, 4000);
+      }, 3500);
 
     });
   });
