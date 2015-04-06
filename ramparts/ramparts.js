@@ -2,11 +2,23 @@ var phantom = require('phantom');
 var _ = require('underscore');
 var system = require('system');
 
+
+// Expected
 var BASE_URL = 'https://dcc.icgc.org';
-// var BASE_URL = 'http://localhost:8080';
+
+// Actual
+// var VALIDATION_BASE_URL = "http://10.5.74.100:8080";
+
+var VALIDATION_BASE_URL = 'https://dcc.icgc.org';
+
+
+var args = process.argv;
+var route = args[2] || process.stderr.write('Usage: node ramparts.js <page>\n') && process.exit();
+
 
 
 function traceLink(page, href, value) {
+
 
   // Normalize
   value = value.replace(/,/, '');
@@ -18,7 +30,6 @@ function traceLink(page, href, value) {
   phantom.create(function(ph) {
 
     function evaluate(selector) {
-
       var res = null;
       res = document.querySelectorAll(selector)[0].textContent;
       res = res.replace(/\n/, '').replace(/\s+/, '').replace(/,/, '');
@@ -32,14 +43,21 @@ function traceLink(page, href, value) {
     }
 
     var selector = '.t_tabs__tab__donor small';
-    if (href.indexOf('/m?') >= 0)  {
-      selector = '.t_tabs__tab__mutation small';
-    } else if (href.indexOf('/g?') >= 0) {
-      selector = '.t_tabs__tab__gene small';
+
+    if (href.indexOf('/search') >= 0) {
+      if (href.indexOf('/m?') >= 0)  {
+        selector = '.t_tabs__tab__mutation small';
+      } else if (href.indexOf('/g?') >= 0) {
+        selector = '.t_tabs__tab__gene small';
+      }
+    } else if (href.indexOf('/projects') >= 0) {
+      href = href.replace('/projects', '/projects/details');
+      selector = ".t_table_top strong";
+console.log(href, selector, '!!!!!');
     }
 
     ph.createPage(function(page) {
-      page.open(BASE_URL + href, function(status) {
+      page.open(VALIDATION_BASE_URL + href, function(status) {
         setTimeout(function() {
           page.evaluate(evaluate, validate, selector);
         }, 3000);
@@ -60,29 +78,49 @@ phantom.create(function(ph) {
       return d.href !== '';
     });
     
+    console.log('Validating against', VALIDATION_BASE_URL + route);
+
+    // Dispatch batch traces
+    var batchCounter = 0;
+    for (var idx=0; idx < links.length; idx++) {
+      if (idx % 5 === 0) {
+
+        (function(batchCounter, i) {
+          setTimeout(function() {
+            traceLink(_page, links[i].href,   links[i].value);
+            if (i === 0) return;
+            traceLink(_page, links[i-1].href, links[i-1].value);
+            traceLink(_page, links[i-2].href, links[i-2].value);
+            traceLink(_page, links[i-3].href, links[i-3].value);
+            traceLink(_page, links[i-4].href, links[i-4].value);
+          }, batchCounter*2500);
+        })(batchCounter, idx);
+
+        batchCounter ++;
+      }
+    }
+
+
+    /*
     links.forEach(function(link, idx) {
       setTimeout(function() {
         traceLink(_page, link.href, link.value);
       }, 3000 * idx);
     });
+    */
 
     ph.exit();
   }
 
   function evaluate() {
 
-
+    // Toggle hidden elements so they can be scraped
     var hidden = document.querySelectorAll('.icon-caret-left');
-    // console.log('hello ' +  hidden.length);
-    // for (var i=0; i < hidden.length; i++) { 
-    // for (var i=0; i < hidden.length; i++) { 
-    for (var i=0; i < 2; i++) { 
+    for (var i=0; i < hidden.length; i++) { 
       $(hidden[i]).click();
-      //console.log('hello ' +  hidden[i]);
-      //if (hidden[i]) hidden[i].click();
     }
     
-
+    // Gather links
     var links = document.getElementsByTagName('a');
     links = Array.prototype.map.call(links,function(link){
         return {
@@ -100,16 +138,9 @@ phantom.create(function(ph) {
     page.set('onConsoleMessage', function(msg) {
       console.log('...' + msg);
     });
-    /*
-    page.onConsoleMessage = function(msg) {
-      system.stderr.writeLine('console :' +  msg);
-    };
-    */
 
-    return page.open(BASE_URL + '/search/g', function(status) {
-      // console.log("opened icgc? ", status );
-
-      console.log('waiting...');
+    return page.open(BASE_URL + route, function(status) {
+      console.log('waiting to process', BASE_URL + route);
       setTimeout(function() {
         console.log('evaluating...');
         page.evaluate(evaluate, validate);
