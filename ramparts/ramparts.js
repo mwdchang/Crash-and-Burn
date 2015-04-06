@@ -13,30 +13,37 @@ function traceLink(page, href, value) {
   if (href.charAt(0) !== '/') href = '/' + href;
   if (isNaN(value)) return;
 
-  console.log('tracing', href, value);
 
   phantom.create(function(ph) {
-    function evaluate() {
-      // return document.title;
-      // var res = document.querySelectorAll('.t_tabs__tab__donor small')[0].outerHTML;
-      var res = document.querySelectorAll('.t_tabs__tab__donor small')[0].textContent;
+
+    function evaluate(selector) {
+      var res = null;
+      res = document.querySelectorAll(selector)[0].textContent;
       res = res.replace(/\n/, '').replace(/\s+/, '').replace(/,/, '');
       res = parseInt(res, 10);
       return res;
     }
   
     function validate(result) {
-      console.log(value, result);
+      console.log(href, value, result);
       ph.exit();
+    }
+
+    var selector = '.t_tabs__tab__donor small';
+    if (href.indexOf('/m?') >= 0)  {
+      selector = '.t_tabs__tab__mutation small';
+    } else if (href.indexOf('/g?') >= 0) {
+      selector = '.t_tabs__tab__gene small';
     }
 
     ph.createPage(function(page) {
       page.open(BASE_URL + href, function(status) {
         setTimeout(function() {
-          page.evaluate(evaluate, validate);
+          page.evaluate(evaluate, validate, selector);
         }, 4000);
       });
     })
+
   });
 }
 
