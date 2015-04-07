@@ -3,29 +3,25 @@ var _ = require('underscore');
 var system = require('system');
 
 
-// Expected
-var BASE_URL = 'https://dcc.icgc.org';
-
-// Actual
-// var VALIDATION_BASE_URL = "http://10.5.74.100:8080";
-
-var VALIDATION_BASE_URL = 'https://dcc.icgc.org';
+//var originBaseURL = 'http://localhost:9000';
+//var validationBaseURL = 'http://localhost:9000';
 
 
 var args = process.argv;
-var route = args[2] || process.stderr.write('Usage: node ramparts.js <page>\n') && process.exit();
+var originBaseURL = args[2] || process.stderr.write('Usage: node ramparts.js <origin_url> <validation_url> <page>\n') && process.exit();
+var validationBaseURL = args[3] || process.stderr.write('Usage: node ramparts.js <origin_url> <validation_url> <page>\n') && process.exit();
+var route = args[4] || process.stderr.write('Usage: node ramparts.js <page>\n') && process.exit();
 
+console.log('args', originBaseURL, validationBaseURL, route);
 
 
 function traceLink(page, href, value) {
-
 
   // Normalize
   value = value.replace(/,/, '');
   value = parseInt(value, 10);
   if (href.charAt(0) !== '/') href = '/' + href;
   if (isNaN(value)) return;
-
 
   phantom.create(function(ph) {
 
@@ -42,22 +38,21 @@ function traceLink(page, href, value) {
       ph.exit();
     }
 
-    var selector = '.t_tabs__tab__donor small';
-
+    var selector = '';
     if (href.indexOf('/search') >= 0) {
+      selector = '.t_tabs__tab__donor small';
       if (href.indexOf('/m?') >= 0)  {
         selector = '.t_tabs__tab__mutation small';
       } else if (href.indexOf('/g?') >= 0) {
         selector = '.t_tabs__tab__gene small';
       }
     } else if (href.indexOf('/projects') >= 0) {
-      href = href.replace('/projects', '/projects/details');
       selector = ".t_table_top strong";
-console.log(href, selector, '!!!!!');
+      href = href.replace('/projects', '/projects/details');
     }
 
     ph.createPage(function(page) {
-      page.open(VALIDATION_BASE_URL + href, function(status) {
+      page.open(validationBaseURL + href, function(status) {
         setTimeout(function() {
           page.evaluate(evaluate, validate, selector);
         }, 3000);
@@ -72,13 +67,12 @@ console.log(href, selector, '!!!!!');
 phantom.create(function(ph) {
   var _page;
 
-
   function validate(result) {
     var links = _.filter(result, function(d) {
       return d.href !== '';
     });
     
-    console.log('Validating against', VALIDATION_BASE_URL + route);
+    console.log('Validating against', validationBaseURL + route);
 
     // Dispatch batch traces
     var batchCounter = 0;
@@ -93,7 +87,7 @@ phantom.create(function(ph) {
             traceLink(_page, links[i-2].href, links[i-2].value);
             traceLink(_page, links[i-3].href, links[i-3].value);
             traceLink(_page, links[i-4].href, links[i-4].value);
-          }, batchCounter*2500);
+          }, batchCounter*2000);
         })(batchCounter, idx);
 
         batchCounter ++;
@@ -112,6 +106,7 @@ phantom.create(function(ph) {
     ph.exit();
   }
 
+
   function evaluate() {
 
     // Toggle hidden elements so they can be scraped
@@ -123,12 +118,12 @@ phantom.create(function(ph) {
     // Gather links
     var links = document.getElementsByTagName('a');
     links = Array.prototype.map.call(links,function(link){
-        return {
-           href: link.getAttribute('href'),
-           value: link.text
-        }
-     });
-     return links;
+      return {
+        href: link.getAttribute('href'),
+        value: link.text
+      }
+    });
+    return links;
   }
 
   return ph.createPage(function(page) {
@@ -139,8 +134,8 @@ phantom.create(function(ph) {
       console.log('...' + msg);
     });
 
-    return page.open(BASE_URL + route, function(status) {
-      console.log('waiting to process', BASE_URL + route);
+    return page.open(originBaseURL + route, function(status) {
+      console.log('waiting to process', originBaseURL + route);
       setTimeout(function() {
         console.log('evaluating...');
         page.evaluate(evaluate, validate);
