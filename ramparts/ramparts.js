@@ -14,7 +14,110 @@ var validationBaseURL = args[3] || process.stderr.write('Usage: node ramparts.js
 var route = args[4] || process.stderr.write('Usage: node ramparts.js <page>\n') && process.exit();
 
 console.log('\n\nRunning', originBaseURL, validationBaseURL, route);
-console.error('\n\nRunning', originBaseURL, validationBaseURL, route);
+
+
+
+
+
+/**
+ * Returns basic information about the page
+ */
+function discovery() {
+
+  // Toggle collapsed elements so they can be scraped
+  var hidden = document.querySelectorAll('.icon-caret-left');
+  for (var i=0; i < hidden.length; i++) { 
+    $(hidden[i]).click();
+  }
+
+
+  // Toggle and expose all facet terms to DOM
+  // Open facets, and expand all terms
+  var activeTerms = [];
+  var inactiveTerms = [];
+
+  var facets = $('.t_facets__facet');
+  console.log('Number of facets', facets.length);
+
+  for (var i=0; i < facets.length; i++) {
+    var facetName = $(facets[i]).find('.t_facets__facet__title__label')[0].textContent.trim();
+    var toggle = $(facets[i]).find('.t_facets__facet__title__label i');
+
+
+    if (toggle.hasClass('icon-caret-right')) {
+      toggle.click();
+    }
+
+    var hasMore = $(facets[i]).find('.t_sh__toggle i');
+    if (hasMore.hasClass('icon-caret-down')) {
+      hasMore.click();
+    }
+
+    var actives = $(facets[i]).find('.t_facets__facet__terms__active__term__count');
+    var activeLabels = $(facets[i]).find('.t_facets__facet__terms__active__term__label__text');
+    var inactives = $(facets[i]).find('.t_facets__facet__terms__inactive__term__count');
+    var inactiveLabels = $(facets[i]).find('.t_facets__facet__terms__inactive__term__label');
+
+    console.log('name', facetName, activeLabels.length, inactiveLabels.length);
+    
+    
+    if (actives.length > 0) {
+      for (var i2=0; i2 < actives.length; i3++) {
+        var label = activeLabels[i2].textContent.trim();
+        var count = actives[i2].textContent.trim();
+        activeTerms.push({
+          facet: facetName,
+          term: label,
+          count: count
+        });
+      }
+    }
+    
+    
+    if (inactives.length > 0) {
+      for (var i3=0; i3 < inactives.length; i3++) {
+        var label = inactiveLabels[i3].textContent.trim();
+        var count = inactives[i3].textContent.trim();
+        inactiveTerms.push({
+          facet: facetName,
+          term: label,
+          count: count
+        });
+      }
+    }
+    
+  }
+
+  // Gather links
+  var links = document.getElementsByTagName('a');
+  links = Array.prototype.map.call(links,function(link){
+    return {
+      href: link.getAttribute('href'),
+      value: link.text
+    }
+  });
+
+  return {
+     activeTerms: activeTerms,
+     inactiveTerms: inactiveTerms,
+     links: links
+  };
+}
+
+
+
+function validateFacets(page, activeTerms, inactiveTerms) {
+  phantom.create(function(ph) {
+    ph.createPage(function(page) {
+      page.open(validationBaseURL + href, function(status) {
+        setTimeout(function() {
+          page.evaluate(evaluate, validate);
+        }, 3000);
+      });
+    })
+  });
+}
+
 
 
 function validateLink(page, href, value) {
@@ -76,9 +179,12 @@ phantom.create(function(ph) {
   var _page;
 
   function validate(result) {
-    var links = _.filter(result, function(d) {
+    var links = _.filter(result.links, function(d) {
       return d.href !== '';
     });
+
+    console.log('active terms', result.activeTerms.length);
+    console.log('inactive terms', result.inactiveTerms.length);
     
     console.log('Validating against', validationBaseURL + route);
 
@@ -105,75 +211,10 @@ phantom.create(function(ph) {
   }
 
 
-  function evaluate() {
-
-    // Toggle collapsed elements so they can be scraped
-    var hidden = document.querySelectorAll('.icon-caret-left');
-    for (var i=0; i < hidden.length; i++) { 
-      $(hidden[i]).click();
-    }
-
-
-    // Toggle and expose all facet terms to DOM
-    // Open facets, and expand all terms
-    var facets = $('.t_facets__facet');
-    for (var i=0; i < facets.length; i++) {
-      var facetName = $(facets[i]).find('.t_facets__facet__title__label')[0].textContent.trim();
-      var toggle = $(facets[i]).find('.t_facets__facet__title__label i');
-
-      if (toggle.hasClass('icon-caret-right')) {
-        toggle.click();
-      }
-
-      var hasMore = $(facets[i]).find('.t_sh__toggle i');
-      if (hasMore.hasClass('icon-caret-down')) {
-        hasMore.click();
-      }
-
-      var actives = $(facets[i]).find('.t_facets__facet__terms__active__term__count');
-      var activeLabels = $(facets[i]).find('.t_facets__facet__terms__active__term__label__text');
-      var inactives = $(facets[i]).find('.t_facets__facet__terms__inactive__term__count');
-      var inactiveLabels = $(facets[i]).find('.t_facets__facet__terms__inactive__term__label');
-
-      console.log('name', facetName, activeLabels.length, inactiveLabels.length);
-      
-      if (actives.length > 0) {
-        for (var i=0; i < actives.length; i++) {
-          var label = activeLabels[i].textContent.trim();
-          var count = actives[i].textContent.trim();
-          console.log('--', label, count);
-        }
-      }
-      
-      if (inactives.length > 0) {
-        for (var i=0; i < inactives.length; i++) {
-          var label = inactiveLabels[i].textContent.trim();
-          var count = inactives[i].textContent.trim();
-          console.log('--', label, count);
-        }
-      }
-
-    }
-
-
-    // Gather links
-    var links = document.getElementsByTagName('a');
-    links = Array.prototype.map.call(links,function(link){
-      return {
-        href: link.getAttribute('href'),
-        value: link.text
-      }
-    });
-
-    var facets = document.querySelectorAll('.t_facets__facet__terms__inactive__term__count');
-    console.log('facet length', facets.length);
-
-    return links;
-  }
 
   return ph.createPage(function(page) {
     page.set('onConsoleMessage', function(msg) {
-      console.log('...' + msg);
+      console.log('--' + msg);
     });
     _page = page;
 
@@ -181,7 +222,7 @@ phantom.create(function(ph) {
       console.log('waiting to process', originBaseURL + route);
       setTimeout(function() {
         console.log('evaluating...');
-        page.evaluate(evaluate, validate);
+        page.evaluate(discovery, validate); 
       }, 3500);
 
     });
