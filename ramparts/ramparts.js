@@ -13,10 +13,8 @@ var originBaseURL = args[2] || process.stderr.write('Usage: node ramparts.js <or
 var validationBaseURL = args[3] || process.stderr.write('Usage: node ramparts.js <origin_url> <validation_url> <page>\n') && process.exit();
 var route = args[4] || process.stderr.write('Usage: node ramparts.js <page>\n') && process.exit();
 
+
 console.log('\n\nRunning', originBaseURL, validationBaseURL, route);
-
-
-
 
 
 /**
@@ -36,7 +34,7 @@ function discovery() {
   var activeTerms = [];
   var inactiveTerms = [];
 
-  var facets = $('.t_facets__facet');
+  var facets = $('ul.t_facets__facet');
   console.log('Number of facets', facets.length);
 
   for (var i=0; i < facets.length; i++) {
@@ -61,10 +59,17 @@ function discovery() {
     console.log('name', facetName, activeLabels.length, inactiveLabels.length);
     
     
-    if (actives.length > 0) {
-      for (var i2=0; i2 < actives.length; i3++) {
+    if (activeLabels.length > 0) {
+      for (var i2=0; i2 < activeLabels.length; i2++) {
         var label = activeLabels[i2].textContent.trim();
-        var count = actives[i2].textContent.trim();
+        var count = ''; 
+        
+        if (actives[i2]) {
+          count = actives[i2].textContent.trim();
+          count = count.replace(/\s+/, '').replace(/,/g, '');
+        }
+
+
         activeTerms.push({
           facet: facetName,
           term: label,
@@ -74,10 +79,16 @@ function discovery() {
     }
     
     
-    if (inactives.length > 0) {
-      for (var i3=0; i3 < inactives.length; i3++) {
+    if (inactiveLabels.length > 0) {
+      for (var i3=0; i3 < inactiveLabels.length; i3++) {
         var label = inactiveLabels[i3].textContent.trim();
-        var count = inactives[i3].textContent.trim();
+        var count = '';
+        
+        if (inactives[i3]) {
+          count = inactives[i3].textContent.trim();
+          count = count.replace(/\s+/, '').replace(/,/g, '');
+        }
+
         inactiveTerms.push({
           facet: facetName,
           term: label,
@@ -85,7 +96,6 @@ function discovery() {
         });
       }
     }
-    
   }
 
   // Gather links
@@ -97,6 +107,7 @@ function discovery() {
     }
   });
 
+
   return {
      activeTerms: activeTerms,
      inactiveTerms: inactiveTerms,
@@ -106,12 +117,29 @@ function discovery() {
 
 
 
-function validateFacets(page, activeTerms, inactiveTerms) {
+function validateFacets(page, route, activeTerms, inactiveTerms) {
   phantom.create(function(ph) {
     ph.createPage(function(page) {
-      page.open(validationBaseURL + href, function(status) {
+
+      function validate(result) {
+        console.log('active terms', activeTerms.length, result.activeTerms.length);
+        console.log('inactive terms', inactiveTerms.length, result.inactiveTerms.length);
+
+        activeTerms.forEach(function(term) {
+          var match = _.find(result.activeTerms, function(t) { return t.facet === term.facet && t.term === term.term; });
+          console.log('Facet', term.facet, term.term, term.count, match? match.count: null);
+        });
+
+        inactiveTerms.forEach(function(term) {
+          var match = _.find(result.inactiveTerms, function(t) { return t.facet === term.facet && t.term === term.term; });
+          console.log('Facet', term.facet, term.term, term.count, match? match.count : null);
+        });
+        ph.exit();
+      }
+
+      page.open(validationBaseURL + route, function(status) {
         setTimeout(function() {
-          page.evaluate(evaluate, validate);
+          page.evaluate(discovery, validate);
         }, 3000);
       });
     })
@@ -140,7 +168,7 @@ function validateLink(page, href, value) {
   
     function validate(result) {
       if (result !== value) {
-        console.log(href, value, result, 'ERROR!!!');
+        console.log('ERROR!!!', href, value, result);
       } else {
         console.log(href, value, result);
       }
@@ -179,6 +207,7 @@ phantom.create(function(ph) {
   var _page;
 
   function validate(result) {
+    console.log('result', result);
     var links = _.filter(result.links, function(d) {
       return d.href !== '';
     });
@@ -187,8 +216,11 @@ phantom.create(function(ph) {
     console.log('inactive terms', result.inactiveTerms.length);
     
     console.log('Validating against', validationBaseURL + route);
+    
+    // Dispatch facet validate
+    validateFacets(_page, route, result.activeTerms, result.inactiveTerms);
 
-    // Dispatch batch traces
+    // Dispatch batch link validates
     var batchCounter = 0;
     for (var idx=0; idx < links.length; idx++) {
       if (idx % 5 === 0) {
@@ -216,6 +248,11 @@ phantom.create(function(ph) {
     page.set('onConsoleMessage', function(msg) {
       console.log('--' + msg);
     });
+
+    page.set('onError', function(msg, trace) {
+      console.log('page error', msg);
+    });
+
     _page = page;
 
     return page.open(originBaseURL + route, function(status) {
@@ -223,7 +260,7 @@ phantom.create(function(ph) {
       setTimeout(function() {
         console.log('evaluating...');
         page.evaluate(discovery, validate); 
-      }, 3500);
+      }, 4000);
 
     });
   });
