@@ -22,11 +22,14 @@ console.log('\n\nRunning', originBaseURL, validationBaseURL, route);
  */
 function discovery() {
 
+  console.log('Performing data discovery');
+
   // Toggle collapsed elements so they can be scraped
   var hidden = document.querySelectorAll('.icon-caret-left');
   for (var i=0; i < hidden.length; i++) { 
     $(hidden[i]).click();
   }
+
 
 
   // Toggle and expose all facet terms to DOM
@@ -35,7 +38,7 @@ function discovery() {
   var inactiveTerms = [];
 
   var facets = $('ul.t_facets__facet');
-  console.log('Number of facets', facets.length);
+  //console.log('Number of facets', facets.length);
 
   for (var i=0; i < facets.length; i++) {
     var facetName = $(facets[i]).find('.t_facets__facet__title__label')[0].textContent.trim();
@@ -51,12 +54,14 @@ function discovery() {
       hasMore.click();
     }
 
-    var actives = $(facets[i]).find('.t_facets__facet__terms__active__term__count');
+    var actives = $(facets[i]).find('.t_facets__facet__terms__active__term__count').not('.t_facets__facet__term__na');
     var activeLabels = $(facets[i]).find('.t_facets__facet__terms__active__term__label__text');
-    var inactives = $(facets[i]).find('.t_facets__facet__terms__inactive__term__count');
+
+    var inactives = $(facets[i]).find('.t_facets__facet__terms__inactive__term__count').not('.t_facets__facet__term__na'); 
     var inactiveLabels = $(facets[i]).find('.t_facets__facet__terms__inactive__term__label');
 
-    console.log('name', facetName, activeLabels.length, inactiveLabels.length);
+    //console.log('name', facetName, activeLabels.length, inactiveLabels.length);
+
     
     
     if (activeLabels.length > 0) {
@@ -122,17 +127,17 @@ function validateFacets(page, route, activeTerms, inactiveTerms) {
     ph.createPage(function(page) {
 
       function validate(result) {
-        console.log('active terms', activeTerms.length, result.activeTerms.length);
-        console.log('inactive terms', inactiveTerms.length, result.inactiveTerms.length);
+        //console.log('active terms', activeTerms.length, result.activeTerms.length);
+        //console.log('inactive terms', inactiveTerms.length, result.inactiveTerms.length);
 
         activeTerms.forEach(function(term) {
           var match = _.find(result.activeTerms, function(t) { return t.facet === term.facet && t.term === term.term; });
-          console.log('Facet', term.facet, term.term, term.count, match? match.count: null);
+          console.log('Facet', term.facet, term.term, term.count, match.count, '\t\t', match.count === term.count? 'OK' : 'ERROR');
         });
 
         inactiveTerms.forEach(function(term) {
           var match = _.find(result.inactiveTerms, function(t) { return t.facet === term.facet && t.term === term.term; });
-          console.log('Facet', term.facet, term.term, term.count, match? match.count : null);
+          console.log('Facet', term.facet, term.term, term.count, match.count, '\t\t', match.count === term.count? 'OK' : 'ERROR');
         });
         ph.exit();
       }
@@ -167,12 +172,7 @@ function validateLink(page, href, value) {
     }
   
     function validate(result) {
-      if (result !== value) {
-        console.log('ERROR!!!', href, value, result);
-      } else {
-        console.log(href, value, result);
-      }
-      //assert.equal(value, result);
+      console.log(href, value, result, '\t\t', value===result? 'OK':'ERROR');
       ph.exit();
     }
 
@@ -207,14 +207,12 @@ phantom.create(function(ph) {
   var _page;
 
   function validate(result) {
-    console.log('result', result);
     var links = _.filter(result.links, function(d) {
       return d.href !== '';
     });
 
-    console.log('active terms', result.activeTerms.length);
-    console.log('inactive terms', result.inactiveTerms.length);
-    
+    // console.log('active terms', result.activeTerms.length);
+    // console.log('inactive terms', result.inactiveTerms.length);
     console.log('Validating against', validationBaseURL + route);
     
     // Dispatch facet validate
@@ -246,7 +244,7 @@ phantom.create(function(ph) {
 
   return ph.createPage(function(page) {
     page.set('onConsoleMessage', function(msg) {
-      console.log('--' + msg);
+      console.log('-- ' + msg);
     });
 
     page.set('onError', function(msg, trace) {
