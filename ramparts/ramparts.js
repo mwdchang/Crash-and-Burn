@@ -63,7 +63,6 @@ function discovery() {
     //console.log('name', facetName, activeLabels.length, inactiveLabels.length);
 
     
-    
     if (activeLabels.length > 0) {
       for (var i2=0; i2 < activeLabels.length; i2++) {
         var label = activeLabels[i2].textContent.trim();
@@ -122,7 +121,7 @@ function discovery() {
 
 
 
-function validateFacets(page, route, activeTerms, inactiveTerms) {
+function validateFacets(route, activeTerms, inactiveTerms) {
   phantom.create(function(ph) {
     ph.createPage(function(page) {
 
@@ -153,7 +152,7 @@ function validateFacets(page, route, activeTerms, inactiveTerms) {
 
 
 
-function validateLink(page, href, value) {
+function validateLink(href, value) {
 
   // Normalize
   value = value.replace(/,/g, '');
@@ -185,6 +184,12 @@ function validateLink(page, href, value) {
       } else if (href.indexOf('/search/g') >= 0) {
         selector = '.t_tabs__tab__gene small';
       }
+    } else if (href.indexOf('/projects/details') >= 0) {
+      selector = ".t_table_top strong";
+    } else if (href.indexOf('/projects/history') >= 0) {
+      selector = ".t_table_top strong";
+    } else if (href.indexOf('/projects/summary') >= 0) {
+      selector = ".t_table_top strong";
     } else if (href.indexOf('/projects') >= 0) {
       selector = ".t_table_top strong";
       href = href.replace('/projects', '/projects/details');
@@ -204,39 +209,43 @@ function validateLink(page, href, value) {
 
 
 phantom.create(function(ph) {
-  var _page;
 
   function validate(result) {
     var links = _.filter(result.links, function(d) {
-      return d.href !== '';
+      var value = d.value;
+      value = value.replace(/,/g, '');
+      value = parseInt(value, 10);
+
+      return d.href !== '' && isNaN(value) === false;
     });
 
-    // console.log('active terms', result.activeTerms.length);
-    // console.log('inactive terms', result.inactiveTerms.length);
     console.log('Validating against', validationBaseURL + route);
     
-    // Dispatch facet validate
-    validateFacets(_page, route, result.activeTerms, result.inactiveTerms);
+    // Dispatch facet validation
+    validateFacets(route, result.activeTerms, result.inactiveTerms);
 
-    // Dispatch batch link validates
+    // Dispatch link validation
     var batchCounter = 0;
-    for (var idx=0; idx < links.length; idx++) {
-      if (idx % 5 === 0) {
+    var batchSize = 5;
 
-        (function(batchCounter, i) {
-          setTimeout(function() {
-            validateLink(_page, links[i].href,   links[i].value);
-            if (i === 0) return;
-            validateLink(_page, links[i-1].href, links[i-1].value);
-            validateLink(_page, links[i-2].href, links[i-2].value);
-            validateLink(_page, links[i-3].href, links[i-3].value);
-            validateLink(_page, links[i-4].href, links[i-4].value);
-          }, batchCounter*4000);
-        })(batchCounter, idx);
+    while(true) {
+      (function(batchCounter) {
+        setTimeout(function() {
+          for (var ii = (batchCounter * batchSize); ii < ((batchCounter+1) * batchSize); ii++) {
+            if (ii < links.length) {
+              //console.log('checking   ', links[ii].href);
+              validateLink(links[ii].href, links[ii].value);
+            }
+          }
+        }, batchCounter * 5000);
+      })(batchCounter);
 
-        batchCounter ++;
+      if (batchCounter * batchSize >= links.length) {
+        break;
       }
+      batchCounter ++;
     }
+
     ph.exit();
   }
 
