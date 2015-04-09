@@ -4,17 +4,24 @@ var assert = require('assert');
 var system = require('system');
 
 
-//var originBaseURL = 'http://localhost:9000';
-//var validationBaseURL = 'http://localhost:9000';
 
 
+/** 
+ * Command line parameters 
+ *   originBaseURL - base server
+ *   validationBaseURL - server to validate
+ *   route - url route
+ *   uniqueLinks - 1 to collapse duplicated links, 0 to check everything
+ */
 var args = process.argv;
 var originBaseURL = args[2] || process.stderr.write('Usage: node ramparts.js <origin_url> <validation_url> <page>\n') && process.exit();
 var validationBaseURL = args[3] || process.stderr.write('Usage: node ramparts.js <origin_url> <validation_url> <page>\n') && process.exit();
 var route = args[4] || process.stderr.write('Usage: node ramparts.js <page>\n') && process.exit();
+var uniqueLinks = args[5] || 1;
 
 
-console.log('\n\nRunning', originBaseURL, validationBaseURL, route);
+console.log('\n\nRunning', originBaseURL, validationBaseURL, route, uniqueLinks);
+
 
 
 /**
@@ -215,6 +222,13 @@ phantom.create(function(ph) {
 
       return d.href !== '' && isNaN(value) === false;
     });
+
+    // Remove duplicates
+    if (uniqueLinks > 0) {
+      links = _.unique(links, function(l) {
+        return l.href + '::' + l.value;
+      });
+    }
 
     console.log('Validating against', validationBaseURL + route);
     
