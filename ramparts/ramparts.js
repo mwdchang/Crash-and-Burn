@@ -191,6 +191,7 @@ function validateLink(href, value) {
       href = href.replace('/projects', '/projects/details');
     }
 
+
     ph.createPage(function(page) {
       page.open(validationBaseURL + href, function(status) {
         setTimeout(function() {
