@@ -38,7 +38,6 @@ function discovery() {
   var inactiveTerms = [];
 
   var facets = $('ul.t_facets__facet');
-  //console.log('Number of facets', facets.length);
 
   for (var i=0; i < facets.length; i++) {
     var facetName = $(facets[i]).find('.t_facets__facet__title__label')[0].textContent.trim();
@@ -60,13 +59,10 @@ function discovery() {
     var inactives = $(facets[i]).find('.t_facets__facet__terms__inactive__term__count').not('.t_facets__facet__term__na'); 
     var inactiveLabels = $(facets[i]).find('.t_facets__facet__terms__inactive__term__label');
 
-    //console.log('name', facetName, activeLabels.length, inactiveLabels.length);
-
-    
     if (activeLabels.length > 0) {
       for (var i2=0; i2 < activeLabels.length; i2++) {
         var label = activeLabels[i2].textContent.trim();
-        var count = ''; 
+        var count = '-'; 
         
         if (actives[i2]) {
           count = actives[i2].textContent.trim();
