@@ -41,9 +41,6 @@ node ./ramparts.js $S1 $S2 "/donors/DO51516?filters={\"mutation\":{\"functionalI
 node ./ramparts.js $S1 $S2 /genes/ENSG00000141510
 
 
-# Gene Entity
-node ./ramparts.js $S1 $S2 /genes/ENSG00000141510
-
 
 # Mutation Entity
 node ./ramparts.js $S1 $S2 /mutations/MU5136

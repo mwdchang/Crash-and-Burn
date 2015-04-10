@@ -227,6 +227,12 @@ function validateLink(href, value) {
 
     var selector = _getSelector(href);
 
+    // Reroute so we can get the total results
+    if (href.indexOf('/projects') >= 0) {
+      var t = href.split('?');
+      href = '/projects/details' + (t[1]? ('?'+t[1]) : '');
+    }
+
     ph.createPage(function(page) {
       page.open(validationBaseURL + href, function(status) {
         setTimeout(function() {
@@ -248,7 +254,10 @@ phantom.create(function(ph) {
       value = value.replace(/,/g, '');
       value = parseInt(value, 10);
 
-      return d.href !== '' && isNaN(value) === false;
+      return d.href !== '' &&            // not buttons
+        isNaN(value) === false &&        // is numerical
+        d.href.indexOf('http') === -1 &&   // is internal
+        d.href.indexOf('https') === -1;    // is internal
     });
 
     // Remove duplicates
