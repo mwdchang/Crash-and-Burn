@@ -27,7 +27,7 @@ console.log('\n\nRunning', originBaseURL, validationBaseURL, route, uniqueLinks)
 /**
  * Returns basic information about the page
  */
-function discovery() {
+function discovery(selector) {
 
   console.log('Performing data discovery');
 
@@ -115,42 +115,90 @@ function discovery() {
   });
 
 
+  var count = null;
+  if (selector) {
+    count = document.querySelectorAll(selector)[0].textContent;
+    count = count.replace(/\n/, '').replace(/\s+/, '').replace(/,/g, '');
+    //count = parseInt(count, 10);
+  }
+
+
   return {
      activeTerms: activeTerms,
      inactiveTerms: inactiveTerms,
-     links: links
+     links: links,
+     count: count
   };
 }
 
 
 
+
+/**
+ * Given active and inactive facet terms, check that the remote server
+ * also has these terms and term counts
+ */
 function validateFacets(route, activeTerms, inactiveTerms) {
   phantom.create(function(ph) {
     ph.createPage(function(page) {
 
       function validate(result) {
-        //console.log('active terms', activeTerms.length, result.activeTerms.length);
-        //console.log('inactive terms', inactiveTerms.length, result.inactiveTerms.length);
 
+        // Active facets should be consistent across servers
         activeTerms.forEach(function(term) {
           var match = _.find(result.activeTerms, function(t) { return t.facet === term.facet && t.term === term.term; });
-          console.log('Facet', term.facet, term.term, term.count, match.count, '\t\t', match.count === term.count? 'OK' : 'ERROR');
+          console.log('Facet:', term.facet, term.term, term.count, match.count, '\t\t', match.count === term.count? 'OK' : 'ERROR');
         });
 
+        // Inactive facets should be consistent across servers
         inactiveTerms.forEach(function(term) {
           var match = _.find(result.inactiveTerms, function(t) { return t.facet === term.facet && t.term === term.term; });
-          console.log('Facet', term.facet, term.term, term.count, match.count, '\t\t', match.count === term.count? 'OK' : 'ERROR');
+          console.log('Facet:', term.facet, term.term, term.count, match.count, '\t\t', match.count === term.count? 'OK' : 'ERROR');
         });
+
+        // Check actives
+        if (result.count) {
+          activeTerms.forEach(function(term) {
+            console.log('Active facet vs page result:', term.facet, term.term, term.count, result.count, term.count === result.count? 'OK' : 'ERROR');
+          });
+        }
         ph.exit();
       }
 
       page.open(validationBaseURL + route, function(status) {
         setTimeout(function() {
-          page.evaluate(discovery, validate);
+          if (route.indexOf('/projects') >= 0 || route.indexOf('/search') >= 0) {
+            page.evaluate(discovery, validate, _getSelector(route)); 
+          } else {
+            page.evaluate(discovery, validate); 
+          }
+          // page.evaluate(discovery, validate);
         }, 3000);
       });
     })
   });
+}
+
+
+function _getSelector(href) {
+  var selector = '';
+  if (href.indexOf('/search') >= 0) {
+    selector = '.t_tabs__tab__donor small';
+    if (href.indexOf('/search/m') >= 0)  {
+      selector = '.t_tabs__tab__mutation small';
+    } else if (href.indexOf('/search/g') >= 0) {
+      selector = '.t_tabs__tab__gene small';
+    }
+  } else if (href.indexOf('/projects/details') >= 0) {
+    selector = ".t_table_top strong";
+  } else if (href.indexOf('/projects/history') >= 0) {
+    selector = ".t_table_top strong";
+  } else if (href.indexOf('/projects/summary') >= 0) {
+    selector = ".t_table_top strong";
+  } else if (href.indexOf('/projects') >= 0) {
+    selector = ".t_table_top strong";
+  }
+  return selector;
 }
 
 
@@ -178,26 +226,7 @@ function validateLink(href, value) {
       ph.exit();
     }
 
-    // FIXME: Should use IDs instead of classes/tags
-    var selector = '';
-    if (href.indexOf('/search') >= 0) {
-      selector = '.t_tabs__tab__donor small';
-      if (href.indexOf('/search/m') >= 0)  {
-        selector = '.t_tabs__tab__mutation small';
-      } else if (href.indexOf('/search/g') >= 0) {
-        selector = '.t_tabs__tab__gene small';
-      }
-    } else if (href.indexOf('/projects/details') >= 0) {
-      selector = ".t_table_top strong";
-    } else if (href.indexOf('/projects/history') >= 0) {
-      selector = ".t_table_top strong";
-    } else if (href.indexOf('/projects/summary') >= 0) {
-      selector = ".t_table_top strong";
-    } else if (href.indexOf('/projects') >= 0) {
-      selector = ".t_table_top strong";
-      href = href.replace('/projects', '/projects/details');
-    }
-
+    var selector = _getSelector(href);
 
     ph.createPage(function(page) {
       page.open(validationBaseURL + href, function(status) {
@@ -237,7 +266,8 @@ phantom.create(function(ph) {
 
     // Dispatch link validation
     var batchCounter = 0;
-    var batchSize = 5;
+    var batchSize = 3;
+
 
     while(true) {
       (function(batchCounter) {
@@ -248,7 +278,7 @@ phantom.create(function(ph) {
               validateLink(links[ii].href, links[ii].value);
             }
           }
-        }, batchCounter * 5000);
+        }, batchCounter * 7000);
       })(batchCounter);
 
       if (batchCounter * batchSize >= links.length) {
@@ -273,12 +303,15 @@ phantom.create(function(ph) {
 
     _page = page;
 
+
+
     return page.open(originBaseURL + route, function(status) {
       console.log('waiting to process', originBaseURL + route);
       setTimeout(function() {
         console.log('evaluating...');
         page.evaluate(discovery, validate); 
-      }, 4000);
+
+     }, 4000);
 
     });
   });
