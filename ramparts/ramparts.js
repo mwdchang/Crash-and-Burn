@@ -4,6 +4,7 @@ var assert = require('assert');
 var system = require('system');
 
 
+var usage = "Usage: node ramparts.js <origin_url> <validation_url> <route> [collapse_links]\n";
 
 
 /** 
@@ -14,9 +15,9 @@ var system = require('system');
  *   uniqueLinks - 1 to collapse duplicated links, 0 to check everything
  */
 var args = process.argv;
-var originBaseURL = args[2] || process.stderr.write('Usage: node ramparts.js <origin_url> <validation_url> <page>\n') && process.exit();
-var validationBaseURL = args[3] || process.stderr.write('Usage: node ramparts.js <origin_url> <validation_url> <page>\n') && process.exit();
-var route = args[4] || process.stderr.write('Usage: node ramparts.js <page>\n') && process.exit();
+var originBaseURL = args[2] || process.stderr.write(usage) && process.exit();
+var validationBaseURL = args[3] || process.stderr.write(usage) && process.exit();
+var route = args[4] || process.stderr.write(usage) && process.exit();
 var uniqueLinks = args[5] || 1;
 
 
@@ -29,14 +30,13 @@ console.log('\n\nRunning', originBaseURL, validationBaseURL, route, uniqueLinks)
  */
 function discovery(selector) {
 
-  console.log('Performing data discovery');
+  console.log('Data discovery ... ');
 
   // Toggle collapsed elements so they can be scraped
   var hidden = document.querySelectorAll('.icon-caret-left');
   for (var i=0; i < hidden.length; i++) { 
     $(hidden[i]).click();
   }
-
 
 
   // Toggle and expose all facet terms to DOM
@@ -49,7 +49,6 @@ function discovery(selector) {
   for (var i=0; i < facets.length; i++) {
     var facetName = $(facets[i]).find('.t_facets__facet__title__label')[0].textContent.trim();
     var toggle = $(facets[i]).find('.t_facets__facet__title__label i');
-
 
     if (toggle.hasClass('icon-caret-right')) {
       toggle.click();
@@ -122,6 +121,7 @@ function discovery(selector) {
     //count = parseInt(count, 10);
   }
 
+  console.log('Found ', activeTerms.length, ' active terms, ', inactiveTerms.length, ' inactive terms, ', links.length + ' links');
 
   return {
      activeTerms: activeTerms,
@@ -172,7 +172,6 @@ function validateFacets(route, activeTerms, inactiveTerms) {
           } else {
             page.evaluate(discovery, validate); 
           }
-          // page.evaluate(discovery, validate);
         }, 3000);
       });
     })
@@ -259,7 +258,7 @@ phantom.create(function(ph) {
       });
     }
 
-    console.log('Validating against', validationBaseURL + route);
+    console.log('Running cross validation:', validationBaseURL + route);
     
     // Dispatch facet validation
     validateFacets(route, result.activeTerms, result.inactiveTerms);
@@ -274,7 +273,6 @@ phantom.create(function(ph) {
         setTimeout(function() {
           for (var ii = (batchCounter * batchSize); ii < ((batchCounter+1) * batchSize); ii++) {
             if (ii < links.length) {
-              //console.log('checking   ', links[ii].href);
               validateLink(links[ii].href, links[ii].value);
             }
           }
@@ -302,8 +300,6 @@ phantom.create(function(ph) {
     });
 
     _page = page;
-
-
 
     return page.open(originBaseURL + route, function(status) {
       console.log('waiting to process', originBaseURL + route);
