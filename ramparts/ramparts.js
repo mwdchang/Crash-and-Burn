@@ -159,7 +159,9 @@ function validateFacets(route, activeTerms, inactiveTerms) {
         // Check actives
         if (result.count) {
           activeTerms.forEach(function(term) {
-            console.log('Active facet vs page result:', term.facet, term.term, term.count, result.count, term.count === result.count? 'OK' : 'ERROR');
+            if (term.count !== '-') {
+              console.log('Active facet vs page result:', term.facet, term.term, term.count, result.count, term.count === result.count? 'OK' : 'ERROR');
+            }
           });
         }
         ph.exit();
