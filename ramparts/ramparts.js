@@ -156,13 +156,42 @@ function validateFacets(route, activeTerms, inactiveTerms) {
           console.log('Facet:', term.facet, term.term, term.count, match.count, '\t\t', match.count === term.count? 'OK' : 'ERROR');
         });
 
-        // Check actives
+        // Check active facets
+        // Not all facets are created equal, there are 2 edge cases
+        //  - ID facets, these haave no counts per se. 
+        //  - One-to-many counts, these counts are typically higher than the page results
+        // whiteList are the facets that have one-to-one relations
+        var whiteList = ['Type', 'Curated Gene Set', 'Primary Site', 'Project', 'Gender', 'Tumour Stage', 'Vital Status', 'Disease Status', 'Relapse Type', 'Age at Diagnosis'];
+
         if (result.count) {
+          var activeGroups = _.groupBy(activeTerms, function(d) { return d.facet; });
+
+          Object.keys(activeGroups).forEach(function(key) {
+            var facet = activeGroups[key];
+            var facetCount  = 0;
+            facet.forEach(function(t) {
+              if (t.count === '-') {
+                facetCount += 1;
+              } else {
+                facetCount += +t.count;
+              }
+            });
+
+            if (whiteList.indexOf(key) >= 0) {
+              console.log('Active facet vs page result:', key, facetCount, result.count, facetCount === +result.count? 'OK' : 'ERROR');
+            } else {
+              console.log('Active *facet* vs page result:', key, facetCount, result.count, facetCount >= +result.count? 'OK' : 'ERROR');
+            }
+          });
+
+
+          /*
           activeTerms.forEach(function(term) {
             if (term.count !== '-') {
               console.log('Active facet vs page result:', term.facet, term.term, term.count, result.count, term.count === result.count? 'OK' : 'ERROR');
             }
           });
+          */
         }
         ph.exit();
       }
