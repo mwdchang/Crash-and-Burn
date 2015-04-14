@@ -4,7 +4,7 @@ var assert = require('assert');
 var system = require('system');
 
 
-var usage = "Usage: node ramparts.js <origin_url> <validation_url> <route> [collapse_links]\n";
+var usage = "Usage: node ramparts.js <origin_url> <validation_url> <route> [follow_links]\n";
 
 
 /** 
@@ -12,16 +12,16 @@ var usage = "Usage: node ramparts.js <origin_url> <validation_url> <route> [coll
  *   originBaseURL - base server
  *   validationBaseURL - server to validate
  *   route - url route
- *   uniqueLinks - 1 to collapse duplicated links, 0 to check everything
+ *   followLinks - 1 to collapse duplicated links, 0 to check everything
  */
 var args = process.argv;
 var originBaseURL = args[2] || process.stderr.write(usage) && process.exit();
 var validationBaseURL = args[3] || process.stderr.write(usage) && process.exit();
 var route = args[4] || process.stderr.write(usage) && process.exit();
-var uniqueLinks = args[5] || 1;
+var followLinks = args[5] || 1;
 
 
-console.log('\n\nRunning', originBaseURL, validationBaseURL, route, uniqueLinks);
+console.log('\n\nRunning', originBaseURL, validationBaseURL, route, followLinks);
 
 
 
@@ -127,8 +127,34 @@ function discovery(selector) {
      activeTerms: activeTerms,
      inactiveTerms: inactiveTerms,
      links: links,
-     count: count
+     count: count,
+     innerText: document.querySelectorAll('.wrap')[0].innerText
   };
+}
+
+
+/**
+ * Check the page content against the validation server's page content
+ * This can be flaky, in particluar if there are some randomness involved
+ * in the page rendering
+ */
+function validateInnerText(route, innerText) {
+  phantom.create(function(ph) {
+    ph.createPage(function(page) {
+
+      function validate(result) {
+        var identical = result.innerText === innerText;
+        console.log('*** Check page content is identical ... ', identical?'OK':'ERROR');
+        ph.exit();
+      }
+
+      page.open(validationBaseURL + route, function(status) {
+        setTimeout(function() {
+          page.evaluate(discovery, validate); 
+        }, 5000);
+      });
+    });
+  });
 }
 
 
@@ -292,13 +318,14 @@ phantom.create(function(ph) {
     });
 
     // Remove duplicates
-    if (uniqueLinks > 0) {
-      links = _.unique(links, function(l) {
-        return l.href + '::' + l.value;
-      });
-    }
+    links = _.unique(links, function(l) {
+      return l.href + '::' + l.value;
+    });
 
     console.log('Running cross validation:', validationBaseURL + route);
+
+    // Dispatch innerText validation
+    validateInnerText(route, result.innerText);
     
     // Dispatch facet validation
     validateFacets(route, result.activeTerms, result.inactiveTerms);
@@ -307,8 +334,7 @@ phantom.create(function(ph) {
     var batchCounter = 0;
     var batchSize = 3;
 
-
-    while(true) {
+    while(followLinks > 0) {
       (function(batchCounter) {
         setTimeout(function() {
           for (var ii = (batchCounter * batchSize); ii < ((batchCounter+1) * batchSize); ii++) {
