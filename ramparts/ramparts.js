@@ -144,6 +144,8 @@ function validateInnerText(route, innerText) {
 
       function validate(result) {
         var identical = result.innerText === innerText;
+        //console.log('first', innerText);
+        //console.log('second', result.innerText);
         console.log('*** Check page content is identical ... ', identical?'OK':'ERROR');
         ph.exit();
       }
